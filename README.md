@@ -1,1 +1,1 @@
-# cu-drupal-tools
+# Cornell Drupal Tools
