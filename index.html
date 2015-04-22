@@ -407,7 +407,7 @@ function cul_new_books_get_json() {
     $json = json_decode($data, true);
     $book_json = $json['results'];
     // 60 * 60 * 24 * 14 = 2 weeks
-    cache_set('cul_new_books', $book_json, 'cache', time() + 60 * 60 * 24 * 14);
+    cache_set('cul_new_books', $book_json, 'cache', time() + 60*60*4*14);
   }
   return $book_json;
 }
