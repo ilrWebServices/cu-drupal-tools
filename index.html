@@ -67,46 +67,48 @@
             <p><strong><span class="fragment">The Problem:</span></strong> <span class="fragment">User authentication with NetID</span></p>
             <p><span class="fragment"><a href="http://ilr-website.dev">Demo</a></span></p>
             <p><strong><span class="fragment">The Solution:</span></strong></p>
-            <img src="images/simplesamlphp.png" />
+            <span class="fragment"><img src="images/simplesamlphp.png" /></span>
           </section>
           <section>
-            <h1>diagram here</h1>
+            <h3>The Actors</h3>
+            <img src="images/SAML Diagram.svg" />
           </section>
           <section>
             <h3>Requirements</h3>
             <ul>
-              <li class="fragment">simpelsamlephp lib</li>
-              <li class="fragment">sqlite db for session storage</li>
+              <li class="fragment"><a href="https://simplesamlphp.org/">SimpleSAMLphp library</a></li>
+              <li class="fragment"><a href="https://ssl.cit.cornell.edu/sslReq/request.html">SSL Certificate</a></li>
+              <li class="fragment">Session storage db</li>
               <li class="fragment"><a href="https://www.drupal.org/project/simplesamlphp_auth">simplesamlphp_auth module</a></li>
             </ul>
           </section>
           <section>
-            <h4><a href="http://www.ilr-website.dev/admin/config/people/simplesamlphp_auth">Configuration</a></h4>
-            <p>via the <a href="">admin interface</a><span class="fragment">Paths</span><span class="fragment">, </span></p>
-            <p>via code:</p>
-            <pre><code data-trim contenteditable>
-/**
- * Implements hook_install().
- */
-function ilr_install() {
-  // Set some default values for the simplesamlphp_auth module
-  variable_set('simplesamlphp_auth_activate', 1);
-  variable_set('simplesamlphp_auth_authsource', 'cornell');
-  variable_set('simplesamlphp_auth_mailattr', 'mail');
-  variable_set('simplesamlphp_auth_registerusers', 1);
-  variable_set('simplesamlphp_auth_unique_id', 'uid');
+            <h4>Configuration</h4>
+            <p>via the <a href="http://www.ilr-website.dev/admin/config/people/simplesamlphp_auth">admin interface</a></p>
+            <span class="fragment"><p>via code:</p>
+                        <pre><code data-trim contenteditable>
+            /**
+             * Implements hook_install().
+             */
+            function ilr_install() {
+              // Set some default values for the simplesamlphp_auth module
+              variable_set('simplesamlphp_auth_activate', 1);
+              variable_set('simplesamlphp_auth_authsource', 'cornell');
+              variable_set('simplesamlphp_auth_mailattr', 'mail');
+              variable_set('simplesamlphp_auth_registerusers', 1);
+              variable_set('simplesamlphp_auth_unique_id', 'uid');
 
-  $admin_role = user_role_load_by_name('administrator');
-  variable_set('simplesamlphp_auth_rolepopulation', "
-    {$admin_role->rid}:uid,=,atf46|
-    {$admin_role->rid}:uid,=,ddd1" // etc.
-  );
+              $admin_role = user_role_load_by_name('administrator');
+              variable_set('simplesamlphp_auth_rolepopulation', "
+                {$admin_role->rid}:uid,=,atf46|
+                {$admin_role->rid}:uid,=,ddd1" // etc.
+              );
 
-  // $set the install directory
+              // $set the install directory
 
-  variable_set('simplesamlphp_auth_installdir', $simplesamlphp_installdir);
-}
-          </code></pre>
+              variable_set('simplesamlphp_auth_installdir', $simplesamlphp_installdir);
+            }
+                      </code></pre></span>
           </section>
           <section>
             <h3><a href="http://www.ilr-website.dev/simplesaml/module.php/core/authenticate.php">SAML Response Object</a></h3>
@@ -115,46 +117,219 @@ function ilr_install() {
         </section>
 
         <section>
-          <h2>Slides</h2>
-          <p>
-            Not a coder? Not a problem. There's a fully-featured visual editor for authoring these, try it out at <a href="http://slides.com" target="_blank">http://slides.com</a>.
-          </p>
+          <section>
+            <h2>Protected Content</h2>
+            <p><strong><span class="fragment">The Problem:</span></strong> <span class="fragment">Limiting content / functionality to users with valid NetIDs</span></p>
+            <p><span class="fragment"><a href="http://ilr-website.dev/node/add/basic_page">Demo</a></span></p>
+            <p><strong><span class="fragment">The Solution:</span></strong></p>
+            <span class="fragment">Nodes</span> <span class="fragment"> vs. entities</span>
+          </section>
+          <section>
+            <h3>Nodes</h3>
+            <p>Custom Publishing Options</p>
+            <pre><code data-trim contenteditable>
+/**
+ * Implements hook_install().
+ */
+function custom_publishing_options_install() {
+  $spec = array(
+    'description' => 'Kerberized publishing option.',
+    'type' => 'int',
+    'not null' => TRUE,
+    'default' => 0
+  );
+  db_add_field('node', 'kerberized', $spec);
+}
+
+/**
+ * Implements hook_schema_alter().
+ */
+function custom_publishing_options_schema_alter(&$schema) {
+  $schema['node']['fields']['kerberized'] = array(
+    'description' => t('Kerberized', array('@name' => 'kerberized')),
+    'type' => 'int',
+    'not null' => TRUE,
+    'default' => 0,
+  );
+}
+
+/**
+ * Implements hook_form_alter()
+ * Adds the "kerberized" checkbox to the node publishing options tab
+ */
+function custom_publishing_options_form_alter(&$form, $form_state, $form_id) {
+  if (isset($form['#node_edit_form']) && $form['#node_edit_form'] === TRUE) {
+    $node = $form['#node'];
+    $form['options']['kerberized'] = array(
+     '#type' => 'checkbox',
+     '#title' => 'Kerberized',
+     '#default_value' => isset($node->kerberized) ? $node->kerberized : FALSE,
+     '#access' => user_access('administer nodes') ? TRUE : FALSE,
+    );
+  }
+}
+          </code></pre>
+          </section>
+          <section>
+            <h3>Nodes</h3>
+            <p>Content authorization</p>
+            <pre><code data-trim contenteditable>
+/**
+ * Implements hook_node_access().
+ * Protects "kerberized" nodes from user's without NetID
+ */
+function basic_page_node_access($node, $op, $account) {
+  if ($op == 'view' && !empty($node->kerberized)) {
+    if (!ilr_user_has_netid()) {
+      drupal_set_message('You must be logged in with your NetID to access this page. <a class="button button-rounded button-highlight" href="/saml_login">Login</a>', 'warning');
+      return NODE_ACCESS_DENY;
+    }
+  }
+}
+          </code></pre>
+          </section>
+          <section>
+            <h3>Entities</h3>
+            <p>"Kerberized" setting</p>
+            <pre><code data-trim contenteditable>
+/**
+ * Implements hook_form_FORM_ID_alter.
+ * Adds the kerberized checkbox to entityform type options
+ */
+function forms_form_entityform_type_form_alter(&$form, &$form_state, $form_id) {
+  $default = (isset($form['#entityform_type']->data['kerberized']))
+    ? $form['#entityform_type']->data['kerberized']
+    : 0;
+
+  $form['data']['kerberized'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('This form requires NetID authentication'),
+    '#weight' => 0,
+    '#default_value' => $default,
+  );
+}
+            </code></pre>
+          </section>
+          <section>
+            <h3>Entities</h3>
+            <p>Entityform authorization</p>
+            <pre><code data-trim contenteditable>
+/**
+ * Implements hook_form_BASE_FORM_ID_alter.
+ */
+function forms_form_entityform_edit_form_alter(&$form, &$entityform_state, $form_id) {
+  $entityform_type = entityform_type_load($bundle);
+  $is_kerberized_form = empty($entityform_type->data['kerberized'])
+    ? FALSE
+    : $entityform_type->data['kerberized'];
+  if ($is_kerberized_form) {
+    _forms_handle_kerberized_form($form);
+  }
+}
+
+/**
+ * Adds kerberized values to forms when appropriate
+ * Logs user out if SAML Session missing (e.g. browser was closed)
+ */
+function _forms_handle_kerberized_form(&$form) {
+  if (user_is_logged_in()) {
+    if (ilr_user_has_netid() && _forms_saml_attributes_present()) {
+      _forms_set_kerberized_values($form); // Not going to review
+    } // SimpleSAMLAuth info missing, so force the user to log in again
+     // code redacted for simplicity
+  } // Remove the form
+  else {
+    $form = drupal_get_form('forms_login_form');
+  }
+}
+
+/**
+ * Returns a simple login button for NetID logins
+ */
+function forms_login_form($form, &$form_state) {
+  $form['netid'] = array(
+    '#markup' => '<p>You must log in with your NetID to view this form.<br /><br /> <a class="button" href="/saml_login">NetID Login</a></p>',
+    '#weight' => -10,
+  );
+  return $form;
+}
+            </code></pre>
+          </section>
         </section>
 
         <section>
-          <h2>Point of View</h2>
-          <p>
-            Press <strong>ESC</strong> to enter the slide overview.
-          </p>
-          <p>
-            Hold down alt and click on any element to zoom in on it using <a href="http://lab.hakim.se/zoom-js">zoom.js</a>. Alt + click anywhere to zoom back out.
-          </p>
+          <section>
+            <h2>Google CSE</h2>
+            <p><strong><span class="fragment">The Problem:</span></strong> <span class="fragment">Creating a user friendly interface for site searching.</span></p>
+            <p><span class="fragment"><a href="http://www.ilr.cornell.edu/">Demo</a></span></p>
+          </section>
+          <section>
+            <h3>Simple Javascript Implementation</h3>
+            <pre><code data-trim contenteditable>
+/**
+* Implements hook_menu().
+*/
+function ilr_search_menu() {
+  $items = array();
+  $items['admin/config/system/ilr_search'] = array(
+    'title' => t('ILR Search Settings'),
+    'description' => t('Configure Google CSE Integration'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ilr_search_admin'),
+    'file' => 'includes/ilr_search.admin.inc',
+    'access arguments' => array('administer ilr search'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['search'] = array(
+    'page callback' => 'ilr_search_results_view',
+    'access arguments' => array('access content'),
+  );
+
+  return $items;
+}
+
+function ilr_search_results_view() {
+  $content = '<gcse:search resultsUrl="/search" queryParameterName="s">Please make sure javascript is enabled to see the search results.</gcse:searchresults-only>';
+
+  return $content;
+}
+
+/**
+ * Admin form.
+ */
+function ilr_search_admin($form, &$form_state) {
+
+  $form['ilr_search_google_key'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Google CSE Key'),
+    '#default_value' => variable_get('ilr_search_google_key', '004310106128673806828:gxzzkns1chw')
+  );
+
+  return system_settings_form($form);
+}
+
+(function ($) {
+  Drupal.behaviors.ilr_search = {
+    attach: function (context, settings) {
+      var cx = Drupal.settings.ilr_search.ilr_search_google_key;
+      var gcse = document.createElement('script');
+      gcse.type = 'text/javascript';
+      gcse.async = true;
+      gcse.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//www.google.com/cse/cse.js?cx=' + cx;
+      var s = document.getElementsByTagName('script')[0];
+      s.parentNode.insertBefore(gcse, s);
+    }
+  };
+}(jQuery));
+
+          </code></pre>
+          </section>
         </section>
 
-        <section>
-          <h2>Touch Optimized</h2>
-          <p>
-            Presentations look great on touch devices, like mobile phones and tablets. Simply swipe through your slides.
-          </p>
-        </section>
 
-        <section data-markdown>
-          <script type="text/template">
-            ## Markdown support
+// Next slide
 
-            Write content using inline or external Markdown.
-            Instructions and more info available in the [readme](https://github.com/hakimel/reveal.js#markdown).
-
-            ```
-            <section data-markdown>
-              ## Markdown support
-
-              Write content using inline or external Markdown.
-              Instructions and more info available in the [readme](https://github.com/hakimel/reveal.js#markdown).
-            </section>
-            ```
-          </script>
-        </section>
 
         <section>
           <section id="fragments">
