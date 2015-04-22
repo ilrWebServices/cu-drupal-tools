@@ -264,13 +264,19 @@ function forms_login_form($form, &$form_state) {
             <p><span class="fragment"><a href="http://www.ilr.cornell.edu/">Demo</a></span></p>
           </section>
           <section>
-            <h3>Simple Javascript Implementation</h3>
+            <h3>Menu Callback / JS</h3>
             <pre><code data-trim contenteditable>
 /**
 * Implements hook_menu().
 */
 function ilr_search_menu() {
   $items = array();
+
+  $items['search'] = array(
+    'page callback' => 'ilr_search_results_view',
+    'access arguments' => array('access content'),
+  );
+
   $items['admin/config/system/ilr_search'] = array(
     'title' => t('ILR Search Settings'),
     'description' => t('Configure Google CSE Integration'),
@@ -281,32 +287,15 @@ function ilr_search_menu() {
     'type' => MENU_NORMAL_ITEM,
   );
 
-  $items['search'] = array(
-    'page callback' => 'ilr_search_results_view',
-    'access arguments' => array('access content'),
-  );
-
   return $items;
 }
 
 function ilr_search_results_view() {
-  $content = '<gcse:search resultsUrl="/search" queryParameterName="s">Please make sure javascript is enabled to see the search results.</gcse:searchresults-only>';
+  $content = '<gcse:search resultsUrl="/search" queryParameterName="s">
+    Please make sure javascript is enabled to see the search results.
+  </gcse:search>';
 
   return $content;
-}
-
-/**
- * Admin form.
- */
-function ilr_search_admin($form, &$form_state) {
-
-  $form['ilr_search_google_key'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Google CSE Key'),
-    '#default_value' => variable_get('ilr_search_google_key', '004310106128673806828:gxzzkns1chw')
-  );
-
-  return system_settings_form($form);
 }
 
 (function ($) {
@@ -316,20 +305,115 @@ function ilr_search_admin($form, &$form_state) {
       var gcse = document.createElement('script');
       gcse.type = 'text/javascript';
       gcse.async = true;
-      gcse.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//www.google.com/cse/cse.js?cx=' + cx;
+      gcse.src = '//www.google.com/cse/cse.js?cx=' + cx;
       var s = document.getElementsByTagName('script')[0];
       s.parentNode.insertBefore(gcse, s);
     }
   };
 }(jQuery));
 
+/**
+ * Implements hook_init()
+ *
+ */
+function ilr_search_init() {
+  if (current_path() == "search") {
+    if (variable_get('ilr_search_google_key')) {
+      drupal_add_js(array(
+        'ilr_search' => array(
+          'ilr_search_google_key' => variable_get('ilr_search_google_key'),
+        ),
+      ), 'setting');
+      drupal_add_js(drupal_get_path('module','ilr_search') . '/ilr_search.js');
+    }
+  }
+}
+
+/**
+ * Admin form for Google CSE key
+ */
+function ilr_search_admin($form, &$form_state) {
+
+  $form['ilr_search_google_key'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Google CSE Key'),
+    '#default_value' => variable_get('ilr_search_google_key')
+  );
+
+  return system_settings_form($form);
+}
           </code></pre>
+          <p class="fragment">Also see the <a href="https://github.com/ilrWebServices/cu-search">CU-Search module</a></p>
+          <p class="fragment"><img src="images/search.png" /></p>
           </section>
         </section>
 
+        <section>
+          <section>
+            <h2>CU New Books</h2>
+            <p><strong><span class="fragment">The Problem:</span></strong> <span class="fragment">How do I stay up-to-date on publications related to my research interests?</span></p>
+            <p><span class="fragment"><a href="http://newbooks.mannlib.cornell.edu/?location=ILR">Demo</a></span><span class="fragment">, <a href="http://www.ilr.cornell.edu/library/research/collections/new-books">ILR Demo</a></span></p>
+          </section>
+          <section>
+            <h3>Implementation</h3>
+            <pre><code data-trim contenteditable>
+/**
+ * The page callback function defined in hook_menu().
+ * The rss icon is lifted from theme_feed_icon() in theme.inc
+ */
+function _cul_new_books_view() {
+  drupal_add_js(drupal_get_path('module','cul_new_books') . '/cul_new_books.js',
+    array('type' => 'file', 'scope' => 'footer'));
+  drupal_add_js(array(
+    'cul_new_books' => array(
+      'allCategories' => _cul_new_books_get_categories(),
+    ),
+  ), 'setting');
 
-// Next slide
+  // RSS implementation removed for simplicity
 
+  $select_menu = drupal_get_form('cul_new_books_select_form_placeholder');
+  $content .= drupal_render($select_menu);
+  $content .= _cul_new_books_generate_books_markup();
+
+  $page_array = array(
+    '#markup' => $content,
+  );
+  return $page_array;
+}
+/**
+ * Generates the markup for the book list
+ */
+function _cul_new_books_generate_books_markup() {
+  $markup = '';
+  $book_json = cul_new_books_get_json();
+  if (!empty($book_json)) {
+    foreach($book_json as $book_data) {
+      $markup .= cul_new_books_generate_book_markup($book_data);
+    }
+  }
+  return $markup;
+}
+/**
+ * Retrieves the json from newbooks site or the cache
+ * Note that the json is updated monthly, on the first of the month
+ */
+function cul_new_books_get_json() {
+  if ($cache = cache_get('cul_new_books')) {
+    $book_json = $cache->data;
+  } else {
+    $url = "http://newbooks.mannlib.cornell.edu/rss?location=ILR&format=json";
+    $data = file_get_contents($url);
+    $json = json_decode($data, true);
+    $book_json = $json['results'];
+    // 60 * 60 * 24 * 14 = 2 weeks
+    cache_set('cul_new_books', $book_json, 'cache', time() + 60 * 60 * 24 * 14);
+  }
+  return $book_json;
+}
+            </code></pre>
+          </section>
+        </section>
 
         <section>
           <section id="fragments">
