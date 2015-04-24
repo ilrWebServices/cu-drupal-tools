@@ -501,7 +501,7 @@ function cul_new_books_get_json() {
             <p><strong><span class="fragment">The Problem:</span></strong> <span class="fragment">How do I pull events from the Localist calendar for display on our site?</span></p>
             <p><span class="fragment"><a href="http://events.cornell.edu/" target="new">Cornell Events</a></span><span class="fragment">, <a href="http://events.cornell.edu/api/2/events?days=364&pp=999&keyword=cals" target="new">CALS Events</a></span></p>
             <p><strong><span class="fragment">The Solution:</span></strong></p>
-            <span class="fragment">Beans</span> <span class="fragment"> + Blocks Class</span> <span class="fragment"> = Tag Specific Events Displayed</span>
+            <span class="fragment">Beans</span> <span class="fragment"> + Blocks</span> <span class="fragment"> = Tag Specific Events Displayed</span>
           </section>
           <section>
             <h2>The Secret Sauce</h2>
@@ -511,73 +511,73 @@ function cul_new_books_get_json() {
 * Displays the bean.
 */
 public function view($bean, $content, $view_mode = 'default', $langcode = NULL) {
-	$keyword_params = EventBlockBean::generate_keyword_params($bean->keywords);
-	$cache_key = EventBlockBean::get_cache_key($bean->keywords);
-	// Caching strategies based on http://www.lullabot.com/articles/beginners-guide-caching-data-drupal-7
-	if (($cache = cache_get('bean_localist_events-' . $cache_key)) && (time() < $cache->expire)) {
-	  $event_json = $cache->data;
-	} else {
-	  $url = "http://cornell.localist.com/api/2/events?days=364&pp=999{$keyword_params}";
-	  $data = file_get_contents($url);
-	  $json = json_decode($data, true);
-	  $event_json = $json['events'];
-	  cache_set('bean_localist_events-' . $cache_key, $event_json, 'cache', time() + 3600);
-	}
-	$event_count = 0;
+  $keyword_params = EventBlockBean::generate_keyword_params($bean->keywords);
+  $cache_key = EventBlockBean::get_cache_key($bean->keywords);
+  // Caching strategies based on http://www.lullabot.com/articles/beginners-guide-caching-data-drupal-7
+  if (($cache = cache_get('bean_localist_events-' . $cache_key)) && (time() < $cache->expire)) {
+    $event_json = $cache->data;
+  } else {
+    $url = "http://cornell.localist.com/api/2/events?days=364&pp=999{$keyword_params}";
+    $data = file_get_contents($url);
+    $json = json_decode($data, true);
+    $event_json = $json['events'];
+    cache_set('bean_localist_events-' . $cache_key, $event_json, 'cache', time() + 3600);
+  }
+  $event_count = 0;
 
-	$content['events'] = array();
+  $content['events'] = array();
 
-	if (empty($event_json)) {
-	  $content['events'][] = array('#markup' => '<div class="event-item even"><p>There are no events to display.</p></div>');
-	  $content['bean'][$bean->delta]['field_more_link'] = array();
-	} else {
-	  foreach($event_json as $event_data) {
-		if ($event_count < $bean->events_shown || $bean->events_shown == 0) {
-		  // Deal with localist's funky json structure
-		  $event = $event_data['event'];
+  if (empty($event_json)) {
+    $content['events'][] = array('#markup' => '<div class="event-item even"><p>There are no events to display.</p></div>');
+    $content['bean'][$bean->delta]['field_more_link'] = array();
+  } else {
+    foreach($event_json as $event_data) {
+      if ($event_count < $bean->events_shown || $bean->events_shown == 0) {
+        // Deal with localist's funky json structure
+        $event = $event_data['event'];
 
-		  $event_start_datetime = strtotime($event['event_instances'][0]['event_instance']['start']);
-	/** this line causes an error with a chg made to localist feed
-		$event_start_datetime = strtotime($event['event_instances'][0]['start']);
-	*/
-		  $event_start_date = format_date($event_start_datetime, 'custom', 'M j');
-		  $event_start_time = format_date($event_start_datetime, 'custom', 'g:i a');
+        $event_start_datetime = strtotime($event['event_instances'][0]['event_instance']['start']);
+  /** this line causes an error with a chg made to localist feed
+      $event_start_datetime = strtotime($event['event_instances'][0]['start']);
+  */
+        $event_start_date = format_date($event_start_datetime, 'custom', 'M j');
+        $event_start_time = format_date($event_start_datetime, 'custom', 'g:i a');
 
-		  // Create the short formatted date from the first event instance
-		  $event_date = '<span class="date">' . $event_start_date . '</span>' . ($event_start_time != '12:00 am' ? ' <span class="event-pipe">|</span> <span class="time">' . $event_start_time . '</span>' : '');
+        // Create the short formatted date from the first event instance
+        $event_date = '<span class="date">' . $event_start_date . '</span>' . ($event_start_time != '12:00 am' ? ' <span class="event-pipe">|</span> <span class="time">' . $event_start_time . '</span>' : '');
 
-		  // Create a shortened description
-		  $event_description = truncate_utf8($event['description_text'], 200, TRUE, TRUE);
-		  // Get the event type if there is one
-		  $event_type_info = (isset($event['filters']['event_types']['0']['name'])) ? "<span class='event-pipe'>&nbsp;|&nbsp;</span><span class=\"event-type\">Event type: <strong>{$event['filters']['event_types']['0']['name']}</strong></span>" : '';
-		  // Replace event url string with correct url.
-		  $event_localist_url = str_replace('//cornell.localist.com', '//events.cornell.edu', $event['localist_url']);
+        // Create a shortened description
+        $event_description = truncate_utf8($event['description_text'], 200, TRUE, TRUE);
+        // Get the event type if there is one
+        $event_type_info = (isset($event['filters']['event_types']['0']['name'])) ? "<span class='event-pipe'>&nbsp;|&nbsp;</span><span class=\"event-type\">Event type: <strong>{$event['filters']['event_types']['0']['name']}</strong></span>" : '';
+        // Replace event url string with correct url.
+        $event_localist_url = str_replace('//cornell.localist.com', '//events.cornell.edu', $event['localist_url']);
 
-		  // Create the markup
-		  //Event fields include Title, Localist Link, Start Date, Start Time, Description, Location, and Event Type
+        // Create the markup
+        //Event fields include Title, Localist Link, Start Date, Start Time, Description, Location, and Event Type
 
-		  $markup = "<div class='event-item " . ($event_count % 2 ? "odd" : "even") . "'>\n";
-		  $markup .= "<h3 class='event-title'><a href='{$event_localist_url}'>{$event['title']}</a></h3>";
-		  $markup .= "<h4 class='event-date'>{$event_date}</h4>";
-		  $markup .= "<p class='event-description'>{$event_description}</p>";
-		  $markup .= "<p class='event-detail'><span class=\"event-location\">Location: <strong>{$event['location_name']}</strong></span>";
-		  if ($event_type_info) {
-			$markup .= "{$event_type_info}\n";
-		  }
-		  $markup .= "</div>";
+        $markup = "<div class='event-item " . ($event_count % 2 ? "odd" : "even") . "'>\n";
+        $markup .= "<h3 class='event-title'><a href='{$event_localist_url}'>{$event['title']}</a></h3>";
+        $markup .= "<h4 class='event-date'>{$event_date}</h4>";
+        $markup .= "<p class='event-description'>{$event_description}</p>";
+        $markup .= "<p class='event-detail'><span class=\"event-location\">Location: <strong>{$event['location_name']}</strong></span>";
+        if ($event_type_info) {
+        $markup .= "{$event_type_info}\n";
+        }
+        $markup .= "</div>";
 
-		  // Add the markup to the render array
-		  $content['events'][] = array('#markup' => $markup);
-		  $event_count++;
-		}
-	  }
-	}
+        // Add the markup to the render array
+        $content['events'][] = array('#markup' => $markup);
+        $event_count++;
+      }
+    }
+  }
 
-	// Consider caching the render array in the future if event renedering is slow
-	// See http://omnifik.com/blog/render-arrays-and-cache-drupal-7
+  // Consider caching the render array in the future if event renedering is slow
+  // See http://omnifik.com/blog/render-arrays-and-cache-drupal-7
 
-	$content['events']['#weight'] = '-1';
-	return $content;
+  $content['events']['#weight'] = '-1';
+  return $content;
 }
 </code>            
             </section>
