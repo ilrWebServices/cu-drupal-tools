@@ -416,15 +416,18 @@ function cul_new_books_get_json() {
         </section>
 
         <section>
-          <section>
+          <section id="ai">
             <h2>Faculty Profiles</h2>
             <p><strong><span class="fragment">The Problem:</span></strong> <span class="fragment">How do I get faculty data from Activity Insight and display it on my site?</span></p>
-            <p><span class="fragment"><a href="http://activityinsight.cornell.edu" target="new">Activity Insight</a></span><span class="fragment">, <a href="http://pppmb.cals.cornell.edu/people/alan-collmer" target="new">A Faculty Profile</a></span></p>
+            <p><span class="fragment"><a href="http://activityinsight.cornell.edu" target="new">Activity Insight</a></span><span class="fragment">, <a href="http://stage.pppmb.cals.cornell.edu/people/alan-collmer" target="new">A Faculty Profile</a></span></p>
+            <p><strong><span class="fragment">The Solution:</span></strong></p>
+            <span class="fragment">Features</span> <span class="fragment"> + Custom Content Class</span> <span class="fragment"> + Feeds Importer</span>
           </section>
 
           <section>
             <h3>Faculty Data as XML</h3>
-            <pre><code data-trim contenteditable>
+			<span class="fragment">Call AI's web service and get...</span>             
+			<span class="fragment"><pre><code data-trim contenteditable>
 <?xml version="1.0" encoding="UTF-8"?>
 <Data dmd:date="2014-06-04" xmlns="http://www.digitalmeasures.com/schema/data" xmlns:dmd="http://www.digitalmeasures.com/schema/data-metadata">
 	<Record dmd:surveyId="1127409" termId="469" userId="349581" username="etc7">
@@ -442,6 +445,7 @@ function cul_new_books_get_json() {
 	</record>
 </Data>
 			</code></pre>
+			</span>
           </section>
           <section>
             <h3>Faculty Data Content Type</h3>
@@ -463,10 +467,121 @@ function cul_new_books_get_json() {
             <h3>Click and wait...</h3>
             <span class="fragment"><img src="images/ai-5-importing.png" /></span>
             <span class="fragment"><img src="images/ai-6-import-done.png" /></span>
-            <p><span class="fragment"><a href="http://pppmb.cals.cornell.edu/admin/content" target="new">Lots of Faculty Profiles</a></span></p>
+            <p><span class="fragment"><a href="http://stage.pppmb.cals.cornell.edu/admin/content" target="new">Lots of Faculty Profiles</a></span></p>
           </section>          
         </section> 
 
+        <section>
+          <section id="news">
+            <h2>Cornell Chronicle News</h2>
+            <p><strong><span class="fragment">The Problem:</span></strong> <span class="fragment">How do I pull news tagged "CALS" from the Cornell Chronicle for display on our site?</span></p>
+            <p><span class="fragment"><a href="http://www.news.cornell.edu/" target="new">Cornell Chronicle</a></span><span class="fragment">, <a href="http://www.news.cornell.edu/RSS/calscollege.xml" target="new">CALS RSS Feed</a></span></p>
+            <p><strong><span class="fragment">The Solution:</span></strong></p>
+            <span class="fragment">Features</span> <span class="fragment"> + Custom Content Class</span> <span class="fragment"> + Feeds Importer</span><span class="fragment"> = Does This Seem Familiar?</span>
+          </section>
+          <section>
+            <h2>News Processing</h2>
+            <p><span class="fragment">Get the XML from http://www.news.cornell.edu/RSS/calscollege.xml</span></p>
+            <p><span class="fragment">Map it to a custom content type via feeds</span></p>
+            <p><span class="fragment">Default tags are chronicle and calscomm</span></p>
+            <p><span class="fragment">Add specific tags to get it to show up in various news displays around the site.</span></p>
+            <p><span class="fragment"><a href="http://stage.pppmb.cals.cornell.edu/admin/content" target="new">Check it out...</a></span></p>
+          </section>
+          <section>
+            <h2>Some News Details</h2>
+            <p><span class="fragment">All CALS news stories get brought into every site via cron.</span></p>
+            <p><span class="fragment">Once a stories is saved, you can change it however you want, it will not be overwritten.</span></p>
+            <p><span class="fragment">You add specific tags to get stories to show up where you want them, which is very flexible.</span>
+            </section>
+        </section>
+
+        <section>
+          <section id="events">
+            <h2>Localist Events</h2>
+            <p><strong><span class="fragment">The Problem:</span></strong> <span class="fragment">How do I pull events from the Localist calendar for display on our site?</span></p>
+            <p><span class="fragment"><a href="http://events.cornell.edu/" target="new">Cornell Events</a></span><span class="fragment">, <a href="http://events.cornell.edu/api/2/events?days=364&pp=999&keyword=cals" target="new">CALS Events</a></span></p>
+            <p><strong><span class="fragment">The Solution:</span></strong></p>
+            <span class="fragment">Beans</span> <span class="fragment"> + Blocks Class</span> <span class="fragment"> = Tag Specific Events Displayed</span>
+          </section>
+          <section>
+            <h2>The Secret Sauce</h2>
+			<span class="fragment"><pre>
+<code data-trim contenteditable>
+/**
+* Displays the bean.
+*/
+public function view($bean, $content, $view_mode = 'default', $langcode = NULL) {
+	$keyword_params = EventBlockBean::generate_keyword_params($bean->keywords);
+	$cache_key = EventBlockBean::get_cache_key($bean->keywords);
+	// Caching strategies based on http://www.lullabot.com/articles/beginners-guide-caching-data-drupal-7
+	if (($cache = cache_get('bean_localist_events-' . $cache_key)) && (time() < $cache->expire)) {
+	  $event_json = $cache->data;
+	} else {
+	  $url = "http://cornell.localist.com/api/2/events?days=364&pp=999{$keyword_params}";
+	  $data = file_get_contents($url);
+	  $json = json_decode($data, true);
+	  $event_json = $json['events'];
+	  cache_set('bean_localist_events-' . $cache_key, $event_json, 'cache', time() + 3600);
+	}
+	$event_count = 0;
+
+	$content['events'] = array();
+
+	if (empty($event_json)) {
+	  $content['events'][] = array('#markup' => '<div class="event-item even"><p>There are no events to display.</p></div>');
+	  $content['bean'][$bean->delta]['field_more_link'] = array();
+	} else {
+	  foreach($event_json as $event_data) {
+		if ($event_count < $bean->events_shown || $bean->events_shown == 0) {
+		  // Deal with localist's funky json structure
+		  $event = $event_data['event'];
+
+		  $event_start_datetime = strtotime($event['event_instances'][0]['event_instance']['start']);
+	/** this line causes an error with a chg made to localist feed
+		$event_start_datetime = strtotime($event['event_instances'][0]['start']);
+	*/
+		  $event_start_date = format_date($event_start_datetime, 'custom', 'M j');
+		  $event_start_time = format_date($event_start_datetime, 'custom', 'g:i a');
+
+		  // Create the short formatted date from the first event instance
+		  $event_date = '<span class="date">' . $event_start_date . '</span>' . ($event_start_time != '12:00 am' ? ' <span class="event-pipe">|</span> <span class="time">' . $event_start_time . '</span>' : '');
+
+		  // Create a shortened description
+		  $event_description = truncate_utf8($event['description_text'], 200, TRUE, TRUE);
+		  // Get the event type if there is one
+		  $event_type_info = (isset($event['filters']['event_types']['0']['name'])) ? "<span class='event-pipe'>&nbsp;|&nbsp;</span><span class=\"event-type\">Event type: <strong>{$event['filters']['event_types']['0']['name']}</strong></span>" : '';
+		  // Replace event url string with correct url.
+		  $event_localist_url = str_replace('//cornell.localist.com', '//events.cornell.edu', $event['localist_url']);
+
+		  // Create the markup
+		  //Event fields include Title, Localist Link, Start Date, Start Time, Description, Location, and Event Type
+
+		  $markup = "<div class='event-item " . ($event_count % 2 ? "odd" : "even") . "'>\n";
+		  $markup .= "<h3 class='event-title'><a href='{$event_localist_url}'>{$event['title']}</a></h3>";
+		  $markup .= "<h4 class='event-date'>{$event_date}</h4>";
+		  $markup .= "<p class='event-description'>{$event_description}</p>";
+		  $markup .= "<p class='event-detail'><span class=\"event-location\">Location: <strong>{$event['location_name']}</strong></span>";
+		  if ($event_type_info) {
+			$markup .= "{$event_type_info}\n";
+		  }
+		  $markup .= "</div>";
+
+		  // Add the markup to the render array
+		  $content['events'][] = array('#markup' => $markup);
+		  $event_count++;
+		}
+	  }
+	}
+
+	// Consider caching the render array in the future if event renedering is slow
+	// See http://omnifik.com/blog/render-arrays-and-cache-drupal-7
+
+	$content['events']['#weight'] = '-1';
+	return $content;
+}
+</code>            
+            </section>
+        </section>
 
         <section>
           <section id="fragments">
